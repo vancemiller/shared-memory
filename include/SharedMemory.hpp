@@ -55,11 +55,6 @@ class SharedMemory {
             }
           }
           memory_region = new mapped_region(*shared_memory, read_write);
-          if (owner) {
-            new(memory_region->get_address()) T();
-            // call T's default constructor and place the object in shared memory
-            // using the new(place) constructor
-          }
           break;
         default:
           // TODO error
@@ -82,6 +77,16 @@ class SharedMemory {
     T* operator->() {
       return static_cast<T*>(memory_region->get_address());
     }
+
+    T* operator&() {
+      return static_cast<T*>(memory_region->get_address());
+    }
+};
+
+template <class T>
+class Reader {
+  public:
+    virtual void read(T& data) = 0;
 };
 
 template <class T>
@@ -93,39 +98,41 @@ class LockedSharedMemory {
     LockedSharedMemory(const std::string& name, boost::interprocess::mode_t type) :
         locks(name + "locks", read_write, type == read_write),
         data(name + "data", type, type == read_write) {
-      if (type == read_only) {
-        DEBUG << "LockedSharedMemory adding consumer " << &locks << std::endl;
-        locks->add_consumer();
-      }
+      new (&locks) ProducerConsumerLocks();
     }
+
     ~LockedSharedMemory(void) {
       DEBUG << "LockedSharedMemory destructor" << std::endl;
       // TODO
     }
 
-    void write(T& t) {
-      DEBUG << "LockedSharedMemory accessed locks " << &locks << " at " << &*locks << std::endl;
-      for (size_t i = 0; i < locks->n_consumers; i++)
-        locks->data_processed.wait();
-      locks->mutex.lock();
-      *(data) = t; // copy
-      DEBUG << "LockedSharedMemory wrote data " << &t << " to " << locks->n_consumers << " consumers." << std::endl;
-      locks->mutex.unlock();
-      for (size_t i = 0; i < locks->n_consumers; i++)
-        locks->data_available.post();
+    template <class ... Args>
+    T* construct_data(Args&& ... args) {
+      scoped_lock<interprocess_mutex> lock(locks->mutex);
+      return new (&data) T(std::forward<Args...>(args...));
     }
 
-    T& read(void) {
-      DEBUG << "LockedSharedMemory accessed locks " << &locks << " at " << &*locks << std::endl;
-      locks->data_available.wait();
+    T* get_data(void) {
       locks->mutex.lock();
-      return *data;
-    }// must call done to release the locks on the item
-
-    void done(void) {
-      locks->mutex.unlock();
-      locks->data_processed.post();
+      return &data;
     }
+
+    void release_data(void) {
+      locks->mutex.unlock();
+    }
+
+    /*void write(Writer& writer) {
+      scoped_lock<interprocess_mutex> lock(locks->mutex);
+      writer.write();
+      //void* ret = memcpy(&data, &t, sizeof(T));
+      //assert(ret == &data);
+    }*/
+
+    void read(Reader<T>& reader) {
+      scoped_lock<interprocess_mutex> lock(locks->mutex);
+      reader.read(*data);
+    }
+
 };
 
 #endif
