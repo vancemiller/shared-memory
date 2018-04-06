@@ -18,6 +18,7 @@ class SharedMemory {
     shared_memory_object* shared_memory;
     mapped_region* memory_region;
   public:
+  public:
     SharedMemory(const std::string& name, boost::interprocess::mode_t type, bool owner) :
         name(name), owner(owner) {
       DEBUG << "SharedMemory region " << name << " at address " << this <<
@@ -86,12 +87,13 @@ class SharedMemory {
 template <class T>
 class Reader {
   public:
-    virtual void read(T& data) = 0;
+    virtual bool read(T& data) = 0;
 };
 
 template <class T>
 class LockedSharedMemory {
   private:
+    interprocess_condition no_data;
     SharedMemory<ProducerConsumerLocks> locks;
     SharedMemory<T> data;
   public:
@@ -107,9 +109,9 @@ class LockedSharedMemory {
     }
 
     template <class ... Args>
-    T* construct_data(Args&& ... args) {
+    void construct_data(Args&& ... args) {
       scoped_lock<interprocess_mutex> lock(locks->mutex);
-      return new (&data) T(std::forward<Args...>(args...));
+      new (&data) T(std::forward<Args...>(args...));
     }
 
     T* get_data(void) {
@@ -128,9 +130,9 @@ class LockedSharedMemory {
       //assert(ret == &data);
     }*/
 
-    void read(Reader<T>& reader) {
+    bool read(Reader<T>& reader) {
       scoped_lock<interprocess_mutex> lock(locks->mutex);
-      reader.read(*data);
+      return reader.read(*data);
     }
 
 };
