@@ -6,7 +6,7 @@
 
 #include "Locks.hpp"
 
-#define DEBUG if (0) std::cout << getpid() << " "
+#define DEBUG if (1) std::cout << getpid() << " "
 
 using namespace boost::interprocess;
 
@@ -32,6 +32,7 @@ class SharedMemory {
                 shared_memory = new shared_memory_object(open_only, name.c_str(), read_only);
               } catch (const boost::interprocess::interprocess_exception& e) {
                 DEBUG << "Open shared memory - Retry count " << retry_count++ << std::endl;
+                sleep(1);
                 continue;
               }
               break;
@@ -50,6 +51,7 @@ class SharedMemory {
                 shared_memory = new shared_memory_object(open_only, name.c_str(), read_write);
               } catch (const boost::interprocess::interprocess_exception& e) {
                 DEBUG << "Open shared memory - Retry count " << retry_count++ << std::endl;
+                sleep(1);
                 continue;
               }
               break;
