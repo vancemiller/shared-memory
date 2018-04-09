@@ -5,10 +5,26 @@
 #include <boost/interprocess/shared_memory_object.hpp>
 
 #include "Locks.hpp"
+#include "Reader.hpp"
 
 #define DEBUG if (1) std::cout << getpid() << " "
 
 using namespace boost::interprocess;
+
+static shared_memory_object* open_only_retry(const std::string& name,
+    boost::interprocess::mode_t type) {
+  int retry_count = 0;
+  while (true) {
+    try {
+      DEBUG << "Open shared memory - Attempt " << ++retry_count << std::endl;
+      return new shared_memory_object(open_only, name.c_str(), type);
+    } catch (const boost::interprocess::interprocess_exception& e) {
+      DEBUG << "Failed to connect to shared memory." << std::endl;
+      std::this_thread::sleep_until(std::chrono::steady_clock::now() +
+          std::chrono::milliseconds(100));
+    }
+  }
+}
 
 template <class T>
 class SharedMemory {
@@ -25,37 +41,15 @@ class SharedMemory {
           " created with type " << type << " owned by me " << owner << std::endl;
       switch (type) {
         case read_only:
-          {
-            int retry_count = 0;
-            while (true) {
-              try {
-                shared_memory = new shared_memory_object(open_only, name.c_str(), read_only);
-              } catch (const boost::interprocess::interprocess_exception& e) {
-                DEBUG << "Open shared memory - Retry count " << retry_count++ << std::endl;
-                sleep(1);
-                continue;
-              }
-              break;
-            }
-            memory_region = new mapped_region(*shared_memory, read_only);
-            break;
-          }
+          shared_memory = open_only_retry(name, read_only);
+          memory_region = new mapped_region(*shared_memory, read_only);
+          break;
         case read_write:
           if (owner) {
             shared_memory = new shared_memory_object(create_only, name.c_str(), read_write);
             shared_memory->truncate(sizeof(T)); // set memory region size
           } else {
-            int retry_count = 0;
-            while (true) {
-              try {
-                shared_memory = new shared_memory_object(open_only, name.c_str(), read_write);
-              } catch (const boost::interprocess::interprocess_exception& e) {
-                DEBUG << "Open shared memory - Retry count " << retry_count++ << std::endl;
-                sleep(1);
-                continue;
-              }
-              break;
-            }
+            shared_memory = open_only_retry(name, read_write);
           }
           memory_region = new mapped_region(*shared_memory, read_write);
           break;
@@ -87,22 +81,17 @@ class SharedMemory {
 };
 
 template <class T>
-class Reader {
-  public:
-    virtual bool read(T& data) = 0;
-};
-
-template <class T>
 class LockedSharedMemory {
   private:
-    interprocess_condition no_data;
     SharedMemory<ProducerConsumerLocks> locks;
     SharedMemory<T> data;
   public:
     LockedSharedMemory(const std::string& name, boost::interprocess::mode_t type) :
         locks(name + "locks", read_write, type == read_write),
         data(name + "data", type, type == read_write) {
-      new (&locks) ProducerConsumerLocks();
+      if (type == read_write) {
+        new (&locks) ProducerConsumerLocks();
+      }
     }
 
     ~LockedSharedMemory(void) {
@@ -110,34 +99,28 @@ class LockedSharedMemory {
       // TODO
     }
 
-    template <class ... Args>
-    void construct_data(Args&& ... args) {
-      scoped_lock<interprocess_mutex> lock(locks->mutex);
-      new (&data) T(std::forward<Args...>(args...));
+    void add_connection(bool synchronous, pid_t replacing) {
+      locks->add_consumer(synchronous, replacing);
+    }
+
+    void remove_connection(void) {
+      locks->remove_consumer();
     }
 
     T* get_data(void) {
-      locks->mutex.lock();
+      locks->data_processed_wait();
       return &data;
     }
 
     void release_data(void) {
-      locks->mutex.unlock();
+      locks->data_available_post();
     }
-
-    /*void write(Writer& writer) {
-      scoped_lock<interprocess_mutex> lock(locks->mutex);
-      writer.write();
-      //void* ret = memcpy(&data, &t, sizeof(T));
-      //assert(ret == &data);
-    }*/
 
     bool read(Reader<T>& reader) {
-      scoped_lock<interprocess_mutex> lock(locks->mutex);
-      return reader.read(*data);
+      return locks->data_read(reader, *data);
     }
-
 };
 
+#undef DEBUG
 #endif
 
