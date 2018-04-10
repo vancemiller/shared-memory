@@ -4,10 +4,9 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 
+#include "Debug.hpp"
 #include "Locks.hpp"
 #include "Reader.hpp"
-
-#define DEBUG if (1) std::cout << getpid() << " "
 
 using namespace boost::interprocess;
 
@@ -120,6 +119,5 @@ class LockedSharedMemory {
     }
 };
 
-#undef DEBUG
 #endif
 
