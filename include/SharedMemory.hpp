@@ -96,7 +96,6 @@ class LockedSharedMemory {
 
     ~LockedSharedMemory(void) {
       DEBUG << "LockedSharedMemory destructor" << std::endl;
-      // TODO
     }
 
     void add_connection(bool synchronous, pid_t replacing) {
