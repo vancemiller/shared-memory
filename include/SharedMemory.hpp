@@ -3,27 +3,14 @@
 
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
+#include <thread>
 
 #include "Debug.hpp"
-#include "Locks.hpp"
 #include "Reader.hpp"
+#include "Writer.hpp"
 
+#define MS_SLEEP_CONNECT 100
 using namespace boost::interprocess;
-
-static shared_memory_object* open_only_retry(const std::string& name,
-    boost::interprocess::mode_t type) {
-  int retry_count = 0;
-  while (true) {
-    try {
-      DEBUG << "Open shared memory - Attempt " << ++retry_count << std::endl;
-      return new shared_memory_object(open_only, name.c_str(), type);
-    } catch (const boost::interprocess::interprocess_exception& e) {
-      DEBUG << "Failed to connect to shared memory." << std::endl;
-      std::this_thread::sleep_until(std::chrono::steady_clock::now() +
-          std::chrono::milliseconds(100));
-    }
-  }
-}
 
 template <class T>
 class SharedMemory {
@@ -32,30 +19,35 @@ class SharedMemory {
     bool owner;
     shared_memory_object* shared_memory;
     mapped_region* memory_region;
+  private:
+    static shared_memory_object* open_only_retry(const std::string& name,
+        boost::interprocess::mode_t type) {
+      int retry_count = 0;
+      while (true) {
+        try {
+          DEBUG << "Open shared memory - Attempt " << ++retry_count << std::endl;
+          return new shared_memory_object(open_only, name.c_str(), type);
+        } catch (const boost::interprocess::interprocess_exception& e) {
+          DEBUG << "Failed to connect to shared memory." << std::endl;
+          std::this_thread::sleep_until(std::chrono::steady_clock::now() +
+              std::chrono::milliseconds(MS_SLEEP_CONNECT));
+        }
+      }
+    }
   public:
-  public:
-    SharedMemory(const std::string& name, boost::interprocess::mode_t type, bool owner) :
-        name(name), owner(owner) {
+    SharedMemory(void) {}
+
+    SharedMemory(const std::string& name, boost::interprocess::mode_t type, bool owner,
+        const pid_t replacing) : name(name), owner(owner) {
       DEBUG << "SharedMemory region " << name << " at address " << this <<
           " created with type " << type << " owned by me " << owner << std::endl;
-      switch (type) {
-        case read_only:
-          shared_memory = open_only_retry(name, read_only);
-          memory_region = new mapped_region(*shared_memory, read_only);
-          break;
-        case read_write:
-          if (owner) {
-            shared_memory = new shared_memory_object(create_only, name.c_str(), read_write);
-            shared_memory->truncate(sizeof(T)); // set memory region size
-          } else {
-            shared_memory = open_only_retry(name, read_write);
-          }
-          memory_region = new mapped_region(*shared_memory, read_write);
-          break;
-        default:
-          // TODO error
-          break;
+      if (owner && !replacing) {
+        shared_memory = new shared_memory_object(open_or_create, name.c_str(), type);
+        shared_memory->truncate(sizeof(T)); // set memory region size
+      } else {
+        shared_memory = open_only_retry(name, type);
       }
+      memory_region = new mapped_region(*shared_memory, type);
     }
 
     ~SharedMemory(void) {
@@ -76,46 +68,6 @@ class SharedMemory {
 
     T* operator&() {
       return static_cast<T*>(memory_region->get_address());
-    }
-};
-
-template <class T>
-class LockedSharedMemory {
-  private:
-    SharedMemory<ProducerConsumerLocks> locks;
-    SharedMemory<T> data;
-  public:
-    LockedSharedMemory(const std::string& name, boost::interprocess::mode_t type) :
-        locks(name + "locks", read_write, type == read_write),
-        data(name + "data", type, type == read_write) {
-      if (type == read_write) {
-        new (&locks) ProducerConsumerLocks();
-      }
-    }
-
-    ~LockedSharedMemory(void) {
-      DEBUG << "LockedSharedMemory destructor" << std::endl;
-    }
-
-    void add_connection(bool synchronous, pid_t replacing) {
-      locks->add_consumer(synchronous, replacing);
-    }
-
-    void remove_connection(void) {
-      locks->remove_consumer();
-    }
-
-    T* get_data(void) {
-      locks->data_processed_wait();
-      return &data;
-    }
-
-    void release_data(void) {
-      locks->data_available_post();
-    }
-
-    bool read(Reader<T>& reader) {
-      return locks->data_read(reader, *data);
     }
 };
 
