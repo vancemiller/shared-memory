@@ -38,8 +38,14 @@ class SharedMemory {
     SharedMemory(void) {}
 
     SharedMemory(const std::string& name, boost::interprocess::mode_t type, bool owner,
-        const pid_t replacing) : name(name), owner(owner) {
-      DEBUG << "SharedMemory region " << name << " at address " << this <<
+        const pid_t replacing) : name(
+#ifdef UNIQUE_NAME
+          std::string(UNIQUE_NAME) + name
+#else
+          name
+#endif
+          ), owner(owner) {
+      DEBUG << "SharedMemory region " << this->name << " at address " << this <<
           " created with type " << type << " owned by me " << owner << std::endl;
       if (owner && !replacing) {
         shared_memory = new shared_memory_object(open_or_create, name.c_str(), type);
