@@ -6,8 +6,6 @@
 #include <thread>
 
 #include "Debug.hpp"
-#include "Reader.hpp"
-#include "Writer.hpp"
 
 #define MS_SLEEP_CONNECT 100
 using namespace boost::interprocess;
