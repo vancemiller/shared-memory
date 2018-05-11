@@ -46,10 +46,10 @@ class SharedMemory {
       DEBUG << "SharedMemory region " << this->name << " at address " << this <<
           " created with type " << type << " owned by me " << owner << std::endl;
       if (owner && !replacing) {
-        shared_memory = new shared_memory_object(open_or_create, name.c_str(), type);
+        shared_memory = new shared_memory_object(open_or_create, this->name.c_str(), type);
         shared_memory->truncate(sizeof(T)); // set memory region size
       } else {
-        shared_memory = open_only_retry(name, type);
+        shared_memory = open_only_retry(this->name, type);
       }
       memory_region = new mapped_region(*shared_memory, type);
     }
