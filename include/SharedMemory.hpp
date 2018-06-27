@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "Debug.hpp"
 
@@ -31,7 +32,7 @@ class SharedMemory {
           ), owner(owner) {
 
       mode_t mode = owner ? 0666 : 0;
-      if (owner && !replacing) flags |= O_CREAT | O_EXCL;
+      if (owner && !replacing) flags |= O_CREAT;
       int count;
       DEBUG << this->name << " " << flags << " " << mode << " " << replacing << std::endl;
       while ((fd = shm_open(this->name.c_str(), flags, mode)) == -1) {
