@@ -2,25 +2,27 @@
 #define SHARED_MEMORY_HPP
 
 #include <cerrno>
+#include <cstring>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 
 #include "Debug.hpp"
 
-#define US_SLEEP_CONNECT 100000
+#define RETRY_COUNT 100
+#define US_SLEEP_CONNECT 10000
 
 template <class T>
 class SharedMemory {
   private:
     const std::string name;
     bool owner;
-    int fd;
-    T* memory_region;
+    int fd = -1;
+    T* memory_region = NULL;
   public:
     SharedMemory(void) {}
 
-    SharedMemory(const std::string& name, bool owner, const pid_t replacing) : name(
+    SharedMemory(const std::string& name, int flags, bool owner, const pid_t replacing) : name(
 #ifdef UNIQUE_NAME
           std::string(UNIQUE_NAME) + name
 #else
@@ -29,26 +31,40 @@ class SharedMemory {
           ), owner(owner) {
 
       mode_t mode = owner ? 0666 : 0;
-      int flags = owner ? O_RDWR : O_RDONLY;
       if (owner && !replacing) flags |= O_CREAT | O_EXCL;
+      int count;
+      DEBUG << this->name << " " << flags << " " << mode << " " << replacing << std::endl;
       while ((fd = shm_open(this->name.c_str(), flags, mode)) == -1) {
         DEBUG << "Open shared memory failure: " << std::strerror(errno) << std::endl;
+        count++;
         usleep(US_SLEEP_CONNECT);
+        if (count >= RETRY_COUNT)
+          throw std::runtime_error(std::string("Failed to open shared memory: ") +
+              std::strerror(errno));
       }
       if (owner && !replacing)
         if (ftruncate(fd, sizeof(T)) == -1)
-          throw std::runtime_error("Failed to resize shared memory: " + std::strerror(errno));
-      int prot = owner ? PROT_READ | PROT_WRITE : PROT_READ;
-      if ((memory_region = mmap(NULL, sizeof(T), prot, MAP_SHARED)) == MAP_FAILED)
-        throw std::runtime_error("Failed to map shared memory: " + std::strerrror(errno));
+          throw std::runtime_error(std::string("Failed to resize shared memory: ") +
+              std::strerror(errno));
+      int prot = PROT_READ;
+      if (flags & O_RDWR) prot |= PROT_WRITE;
+      if ((memory_region = (T*) mmap(NULL, sizeof(T), prot, MAP_SHARED, fd, 0)) == MAP_FAILED)
+        throw std::runtime_error(std::string("Failed to map shared memory: ") +
+            std::strerror(errno));
     }
 
     ~SharedMemory(void) {
       DEBUG << "SharedMemory destructor" << std::endl;
-      if (munmap(memory_region, sizeof(T)) == -1)
-        std::cerr << "Failed to unmap shared memory: " << std::strerror(errno) << std::endl;
-      if (shm_unlink(name.c_str()) == -1)
-        std::cerr << "Failed to unlink shared memory: " << std::strerror(errno) << std::endl;
+      if (memory_region)
+        if (munmap(memory_region, sizeof(T)) == -1)
+          std::cerr << "Failed to unmap shared memory: " << std::strerror(errno) << std::endl;
+      if (fd != -1) {
+        if (close(fd) == -1)
+          std::cerr << "Failed to close shared memory: " << std::strerror(errno) << std::endl;
+        if (owner)
+          if (shm_unlink(name.c_str()) == -1)
+            std::cerr << "Failed to unlink shared memory: " << std::strerror(errno) << std::endl;
+      }
     }
 
     T& operator*() {
