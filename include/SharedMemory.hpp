@@ -1,77 +1,66 @@
 #ifndef SHARED_MEMORY_HPP
 #define SHARED_MEMORY_HPP
 
-#include <boost/interprocess/mapped_region.hpp>
-#include <boost/interprocess/shared_memory_object.hpp>
-#include <thread>
+#include <cerrno>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 
 #include "Debug.hpp"
 
-#define MS_SLEEP_CONNECT 100
-using namespace boost::interprocess;
+#define US_SLEEP_CONNECT 100000
 
 template <class T>
 class SharedMemory {
   private:
     const std::string name;
     bool owner;
-    shared_memory_object* shared_memory;
-    mapped_region* memory_region;
-  private:
-    static shared_memory_object* open_only_retry(const std::string& name,
-        boost::interprocess::mode_t type) {
-      int retry_count = 0;
-      while (true) {
-        try {
-          DEBUG << "Open shared memory - Attempt " << ++retry_count << std::endl;
-          return new shared_memory_object(open_only, name.c_str(), type);
-        } catch (const boost::interprocess::interprocess_exception& e) {
-          DEBUG << "Failed to connect to shared memory." << std::endl;
-          std::this_thread::sleep_until(std::chrono::steady_clock::now() +
-              std::chrono::milliseconds(MS_SLEEP_CONNECT));
-        }
-      }
-    }
+    int fd;
+    T* memory_region;
   public:
     SharedMemory(void) {}
 
-    SharedMemory(const std::string& name, boost::interprocess::mode_t type, bool owner,
-        const pid_t replacing) : name(
+    SharedMemory(const std::string& name, bool owner, const pid_t replacing) : name(
 #ifdef UNIQUE_NAME
           std::string(UNIQUE_NAME) + name
 #else
           name
 #endif
           ), owner(owner) {
-      DEBUG << "SharedMemory region " << this->name << " at address " << this <<
-          " created with type " << type << " owned by me " << owner << std::endl;
-      if (owner && !replacing) {
-        shared_memory = new shared_memory_object(open_or_create, this->name.c_str(), type);
-        shared_memory->truncate(sizeof(T)); // set memory region size
-      } else {
-        shared_memory = open_only_retry(this->name, type);
+
+      mode_t mode = owner ? 0666 : 0;
+      int flags = owner ? O_RDWR : O_RDONLY;
+      if (owner && !replacing) flags |= O_CREAT | O_EXCL;
+      while ((fd = shm_open(this->name.c_str(), flags, mode)) == -1) {
+        DEBUG << "Open shared memory failure: " << std::strerror(errno) << std::endl;
+        usleep(US_SLEEP_CONNECT);
       }
-      memory_region = new mapped_region(*shared_memory, type);
+      if (owner && !replacing)
+        if (ftruncate(fd, sizeof(T)) == -1)
+          throw std::runtime_error("Failed to resize shared memory: " + std::strerror(errno));
+      int prot = owner ? PROT_READ | PROT_WRITE : PROT_READ;
+      if ((memory_region = mmap(NULL, sizeof(T), prot, MAP_SHARED)) == MAP_FAILED)
+        throw std::runtime_error("Failed to map shared memory: " + std::strerrror(errno));
     }
 
     ~SharedMemory(void) {
       DEBUG << "SharedMemory destructor" << std::endl;
-      if (owner)
-        shared_memory_object::remove(name.c_str());
-      delete memory_region;
-      delete shared_memory;
+      if (munmap(memory_region, sizeof(T)) == -1)
+        std::cerr << "Failed to unmap shared memory: " << std::strerror(errno) << std::endl;
+      if (shm_unlink(name.c_str()) == -1)
+        std::cerr << "Failed to unlink shared memory: " << std::strerror(errno) << std::endl;
     }
 
     T& operator*() {
-      return *static_cast<T*>(memory_region->get_address());
+      return *memory_region;
     }
 
     T* operator->() {
-      return static_cast<T*>(memory_region->get_address());
+      return memory_region;
     }
 
     T* operator&() {
-      return static_cast<T*>(memory_region->get_address());
+      return memory_region;
     }
 };
 
