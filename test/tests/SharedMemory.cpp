@@ -1,3 +1,5 @@
+#include <pthread.h>
+
 #include "gtest/gtest.h"
 #include "SharedMemory.hpp"
 
@@ -41,3 +43,14 @@ TEST(SharedMemory, Remap) {
   }
 }
 
+TEST(SharedMemory, Reattach) {
+  SharedMemory<int>* my_int = new SharedMemory<int>("/intTest4", O_RDWR, true, 0);
+  // leak the memory to my_int so it's not destructed
+  pthread_t tid = pthread_self();
+
+  SharedMemory<int> re_int("/intTest4", O_RDWR, true, tid);
+  *re_int = 666;
+
+  EXPECT_EQ(*(*my_int), *re_int);
+
+}
