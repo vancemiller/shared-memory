@@ -33,7 +33,7 @@ class SharedMemory {
 
       mode_t mode = owner ? 0666 : 0;
       if (owner && !replacing) flags |= O_CREAT;
-      int count;
+      int count = 0;
       DEBUG << this->name << " " << flags << " " << mode << " " << replacing << std::endl;
       while ((fd = shm_open(this->name.c_str(), flags, mode)) == -1) {
         DEBUG << "Open shared memory failure: " << std::strerror(errno) << std::endl;
