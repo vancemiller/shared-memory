@@ -25,9 +25,9 @@ class SharedMemory {
 
     SharedMemory(const std::string& name, int flags, bool owner, const pid_t replacing) : name(
 #ifdef UNIQUE_NAME
-          std::string(UNIQUE_NAME) + name
+          std::string("/") + UNIQUE_NAME + name
 #else
-          name
+          std::string("/") + name
 #endif
           ), owner(owner) {
 
