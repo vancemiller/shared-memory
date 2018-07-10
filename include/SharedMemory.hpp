@@ -23,7 +23,7 @@ class SharedMemory {
   public:
     SharedMemory(void) {}
 
-    SharedMemory(const std::string& name, int flags, bool owner, const pid_t replacing) : name(
+    SharedMemory(const std::string& name, int flags, bool owner, bool replacing) : name(
 #ifdef UNIQUE_NAME
           std::string("/") + UNIQUE_NAME + name
 #else
