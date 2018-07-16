@@ -15,8 +15,9 @@
 
 template <class T>
 class SharedMemory {
-  private:
+  public:
     const std::string name;
+  private:
     bool owner;
     int fd = -1;
     T* memory_region = NULL;
