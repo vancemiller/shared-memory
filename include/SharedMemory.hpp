@@ -68,17 +68,12 @@ class SharedMemory {
       }
     }
 
-    T& operator*() {
-      return *memory_region;
-    }
-
-    T* operator->() {
-      return memory_region;
-    }
-
-    T* operator&() {
-      return memory_region;
-    }
+    const T& operator*(void) const { return *memory_region; }
+    T& operator*(void) { return *memory_region; }
+    const T* operator->(void) const { return memory_region; }
+    T* operator->(void) { return memory_region; }
+    const T* operator&(void) const { return memory_region; }
+    T* operator&(void) { return memory_region; }
 };
 
 #endif
