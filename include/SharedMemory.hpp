@@ -20,6 +20,7 @@ class SharedMemory {
   private:
     bool owner;
     int fd = -1;
+  protected:
     T* memory_region = NULL;
   public:
     SharedMemory(void) {}
