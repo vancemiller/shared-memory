@@ -24,7 +24,7 @@ class SharedMemory {
     T* memory_region = NULL;
   public:
     SharedMemory(void) {}
-    SharedMemory(const SharedMemory& m) = delete;
+    SharedMemory(const SharedMemory& m) { assert(false); }
     SharedMemory(const std::string& name, int flags, bool owner, bool replacing) : name(
 #ifdef UNIQUE_NAME
           std::string("/") + UNIQUE_NAME + name
