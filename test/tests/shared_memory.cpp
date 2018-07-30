@@ -1,5 +1,3 @@
-#include <pthread.h>
-
 #include "gtest/gtest.h"
 #include "shared_memory.hpp"
 
