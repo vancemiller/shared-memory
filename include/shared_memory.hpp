@@ -21,8 +21,6 @@ class SharedMemory {
   protected:
     T* memory_region = NULL;
   public:
-    SharedMemory(void) {}
-    SharedMemory(const SharedMemory& m) { assert(false); }
     SharedMemory(const std::string& name, int flags, bool owner, bool replacing) :
         name(std::string("/") + name), owner(owner) {
       mode_t mode = owner ? 0666 : 0;
