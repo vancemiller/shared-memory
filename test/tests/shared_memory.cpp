@@ -1,7 +1,7 @@
 #include <pthread.h>
 
 #include "gtest/gtest.h"
-#include "SharedMemory.hpp"
+#include "shared_memory.hpp"
 
 #define ITERATIONS 6666
 
