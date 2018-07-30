@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(shared_memory)
+project(SharedMemory)
 
 option(SHARED_MEMORY_TESTS "Run unit tests" OFF)
 if(SHARED_MEMORY_TESTS)
@@ -8,4 +8,5 @@ endif()
 
 add_library(${PROJECT_NAME} INTERFACE)
 target_include_directories(${PROJECT_NAME} INTERFACE include)
+target_link_libraries(${PROJECT_NAME} INTERFACE rt)
 

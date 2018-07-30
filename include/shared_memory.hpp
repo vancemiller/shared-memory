@@ -8,8 +8,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "Debug.hpp"
-
 #define RETRY_COUNT 100
 #define US_SLEEP_CONNECT 10000
 
@@ -25,20 +23,12 @@ class SharedMemory {
   public:
     SharedMemory(void) {}
     SharedMemory(const SharedMemory& m) { assert(false); }
-    SharedMemory(const std::string& name, int flags, bool owner, bool replacing) : name(
-#ifdef UNIQUE_NAME
-          std::string("/") + UNIQUE_NAME + name
-#else
-          std::string("/") + name
-#endif
-          ), owner(owner) {
-
+    SharedMemory(const std::string& name, int flags, bool owner, bool replacing) :
+        name(std::string("/") + name), owner(owner) {
       mode_t mode = owner ? 0666 : 0;
       if (owner && !replacing) flags |= O_CREAT;
       int count = 0;
-      DEBUG << this->name << " " << flags << " " << mode << " " << replacing << std::endl;
       while ((fd = shm_open(this->name.c_str(), flags, mode)) == -1) {
-        DEBUG << "Open shared memory failure: " << std::strerror(errno) << std::endl;
         count++;
         usleep(US_SLEEP_CONNECT);
         if (count >= RETRY_COUNT)
@@ -57,7 +47,6 @@ class SharedMemory {
     }
 
     ~SharedMemory(void) {
-      DEBUG << "SharedMemory destructor" << std::endl;
       if (memory_region)
         if (munmap(memory_region, sizeof(T)) == -1)
           std::cerr << "Failed to unmap shared memory: " << std::strerror(errno) << std::endl;
