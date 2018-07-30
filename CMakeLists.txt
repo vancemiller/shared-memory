@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(SharedMemory)
+project(shared-memory)
 
 option(SHARED_MEMORY_TESTS "Run unit tests" OFF)
 if(SHARED_MEMORY_TESTS)
