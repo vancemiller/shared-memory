@@ -4,6 +4,7 @@
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
+#include <stdexcept>
 #include <system_error>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -17,66 +18,73 @@ class SharedMemory {
   public:
     const std::string name;
   private:
+    const size_t nmemb;
     const size_t size;
-    bool owner;
-    int fd = -1;
+    bool create;
+    int fd;
   protected:
     T* memory_region = NULL;
   public:
     /**
-      * Create a shared memory region of size sizeof(T) * count identified by name.
-      * flags are POSIX shm (man shm_open) flags specifying permissions. By default this is
-      * O_RDONLY. Writable regions require flags to be O_RDWR.
-      * The owner of the shared memory region has permission to overwrite existing shared memory
-      * regions with the same name.
-      * Owners can reattach to an existing shared memory region without overwriting it by setting
-      * reattach to true.
+      * Create a shared memory region of size nmemb * size identified by name.
+      * flags are POSIX shm (man shm_open) flags specifying permissions (O_RDONLY by default).
+      * Writable regions should set flags to O_RDWR.
+      * If create is true, the constructor will overwrite existing shared memory regions with the
+      * same name.
       */
-    SharedMemory(size_t count, const std::string& name, int flags = O_RDONLY, bool owner = false,
-        bool reattach = false) : name(std::string("/") + name), size(sizeof(T) * count),
-        owner(owner) {
-      mode_t mode = owner ? 0666 : 0;
-      if (owner && !reattach) flags |= O_CREAT;
+    SharedMemory(const std::string& name, size_t nmemb, size_t size, int flags = O_RDONLY,
+        bool create = false) : name(std::string("/") + name), nmemb(nmemb), size(size),
+        create(create), fd(-1) {
+      if (sizeof(T) > size)
+        throw std::runtime_error("size must be at least " + std::to_string(sizeof(T)));
+      mode_t mode = create ? 0666 : 0;
+      if (create) flags |= O_CREAT;
       int retry_count = 0;
       while ((fd = shm_open(this->name.c_str(), flags, mode)) == -1) {
         retry_count++;
         usleep(US_SLEEP_CONNECT);
         if (retry_count >= RETRY_COUNT)
-          throw std::system_error(errno, std::generic_category(), "shm_open failed after " +
-              std::to_string(RETRY_COUNT) + " retries");
+          throw std::system_error(errno, std::generic_category(), "shm_open failed");
       }
-      if (owner && !reattach)
-        if (ftruncate(fd, size) == -1)
+      if (create)
+        if (ftruncate(fd, nmemb * size) == -1)
           throw std::system_error(errno, std::generic_category(), "ftruncate failed");
       int prot = PROT_READ;
       if (flags & O_RDWR) prot |= PROT_WRITE;
-      if ((memory_region = (T*) mmap(NULL, size, prot, MAP_SHARED, fd, 0)) == MAP_FAILED)
+      if ((memory_region = (T*) mmap(NULL, nmemb * size, prot, MAP_SHARED, fd, 0)) == MAP_FAILED)
         throw std::system_error(errno, std::generic_category(), "mmap failed");
-    }
+   }
+
+    SharedMemory(const std::string& name, size_t size, int flags = O_RDONLY, bool create = false,
+        bool reattach = false) : SharedMemory(name, 1, size, flags, create) {}
 
     ~SharedMemory(void) {
       if (memory_region)
-        if (munmap(memory_region, size) == -1)
+        if (munmap(memory_region, nmemb * size) == -1)
           std::cerr << "munmap failed: " << std::strerror(errno) << std::endl;
       if (fd != -1) {
         if (close(fd) == -1)
           std::cerr << "close failed: " << std::strerror(errno) << std::endl;
-        if (owner)
+        if (create)
           if (shm_unlink(name.c_str()) == -1)
             std::cerr << "shm_unlink failed: " << std::strerror(errno) << std::endl;
       }
     }
 
-
     const T& operator*(void) const { return *memory_region; }
-    T& operator*(void) { return *memory_region; }
-    const T* operator->(void) const { return memory_region; }
-    T* operator->(void) { return memory_region; }
     const T* operator&(void) const { return memory_region; }
+    const T* operator->(void) const { return memory_region; }
+    const T& operator[](size_t i) const {
+      if (i > nmemb) throw std::out_of_range(std::to_string(i));
+      return ((T*) this->memory_region)[i];
+    }
+    T& operator*(void) { return *memory_region; }
     T* operator&(void) { return memory_region; }
-    // TODO should we do bounds checking?
-    const T& operator[](size_t i) const { return ((T*) this->memory_region)[i]; }
-    T& operator[](size_t i) { return ((T*) this->memory_region)[i]; }
+    T* operator->(void) { return memory_region; }
+    T& operator[](size_t i) {
+      if (i > nmemb) throw std::out_of_range(std::to_string(i));
+      return ((T*) this->memory_region)[i];
+    }
 };
 
 #endif
