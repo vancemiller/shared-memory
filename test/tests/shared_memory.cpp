@@ -98,3 +98,11 @@ TEST(SharedMemory, ReadWrite2Array) {
 TEST(SharedMemory, NotBigEnough) {
   EXPECT_THROW(new SharedMemory<int>("test", 1, (size_t) 1, O_RDWR, true), std::runtime_error);
 }
+
+TEST(SharedMemory, MoveConstructor) {
+  SharedMemory<int> m("test", 1, sizeof(int), O_RDWR, true);
+  *m = 12345;
+  SharedMemory<int> m2(std::move(m));
+  EXPECT_EQ(12345, *m2);
+  EXPECT_THROW(*m, std::runtime_error);
+}

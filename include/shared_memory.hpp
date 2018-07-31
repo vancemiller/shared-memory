@@ -71,17 +71,48 @@ class SharedMemory {
       }
     }
 
-    const T& operator*(void) const { return *memory_region; }
-    const T* operator&(void) const { return memory_region; }
-    const T* operator->(void) const { return memory_region; }
+    // Delete copy constructors
+    SharedMemory(SharedMemory& o) = delete;
+    SharedMemory(const SharedMemory& o) = delete;
+    // Define move constructor
+    SharedMemory(SharedMemory&& o) : name(o.name), nmemb(o.nmemb), size(o.size), create(o.create),
+        fd(o.fd), memory_region(o.memory_region) {
+      o.create = false;
+      o.memory_region = NULL;
+      o.fd = -1;
+    }
+
+    const T& operator*(void) const {
+      if (!memory_region) throw std::runtime_error("nullptr");
+      return *memory_region;
+    }
+    const T* operator&(void) const {
+      if (!memory_region) throw std::runtime_error("nullptr");
+      return memory_region;
+    }
+    const T* operator->(void) const {
+      if (!memory_region) throw std::runtime_error("nullptr");
+      return memory_region;
+    }
     const T& operator[](size_t i) const {
+      if (!memory_region) throw std::runtime_error("nullptr");
       if (i > nmemb) throw std::out_of_range(std::to_string(i));
       return ((T*) this->memory_region)[i];
     }
-    T& operator*(void) { return *memory_region; }
-    T* operator&(void) { return memory_region; }
-    T* operator->(void) { return memory_region; }
+    T& operator*(void) {
+      if (!memory_region) throw std::runtime_error("nullptr");
+      return *memory_region;
+    }
+    T* operator&(void) {
+      if (!memory_region) throw std::runtime_error("nullptr");
+      return memory_region;
+    }
+    T* operator->(void) {
+      if (!memory_region) throw std::runtime_error("nullptr");
+      return memory_region;
+    }
     T& operator[](size_t i) {
+      if (!memory_region) throw std::runtime_error("nullptr");
       if (i > nmemb) throw std::out_of_range(std::to_string(i));
       return ((T*) this->memory_region)[i];
     }
