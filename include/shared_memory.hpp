@@ -55,8 +55,8 @@ class SharedMemory {
         throw std::system_error(errno, std::generic_category(), "mmap failed");
    }
 
-    SharedMemory(const std::string& name, size_t size, int flags = O_RDONLY, bool create = false,
-        bool reattach = false) : SharedMemory(name, 1, size, flags, create) {}
+    SharedMemory(const std::string& name, size_t size, int flags = O_RDONLY, bool create = false) :
+        SharedMemory(name, 1, size, flags, create) {}
 
     ~SharedMemory(void) {
       if (memory_region)

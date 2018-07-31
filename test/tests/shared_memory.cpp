@@ -45,7 +45,7 @@ TEST(SharedMemory, Reattach) {
   SharedMemory<int>* my_int = new SharedMemory<int>("test", sizeof(int), O_RDWR, true);
   // leak memory so destructor isn't called
 
-  SharedMemory<int> re_int("test", sizeof(int), O_RDWR, true, true);
+  SharedMemory<int> re_int("test", sizeof(int), O_RDWR, false);
   *re_int = 666;
 
   EXPECT_EQ(**my_int, *re_int);
