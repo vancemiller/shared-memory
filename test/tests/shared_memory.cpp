@@ -106,3 +106,21 @@ TEST(SharedMemory, MoveConstructor) {
   EXPECT_EQ(12345, *m2);
   EXPECT_THROW(*m, std::runtime_error);
 }
+
+class DestructSetsInt {
+  int& to_set;
+  int value;
+  public:
+    DestructSetsInt(int& to_set, int value) : to_set(to_set), value(value) {}
+    ~DestructSetsInt(void) { to_set = value; }
+};
+
+TEST(SharedMemory, DeleteDoesNotDestruct) {
+  int i = 0;
+  {
+    SharedMemory<DestructSetsInt> shared("test", sizeof(DestructSetsInt), O_RDWR, true);
+    new (&shared) DestructSetsInt(i, 2);
+    EXPECT_EQ(0, i);
+  }
+  EXPECT_EQ(0, i);
+}
