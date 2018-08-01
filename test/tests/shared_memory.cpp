@@ -115,7 +115,7 @@ class DestructSetsInt {
     ~DestructSetsInt(void) { to_set = value; }
 };
 
-TEST(SharedMemory, DeleteDoesNotDestruct) {
+TEST(SharedMemory, DestructDoesNotAffectContents) {
   int i = 0;
   {
     SharedMemory<DestructSetsInt> shared("test", sizeof(DestructSetsInt), O_RDWR, true);
@@ -123,4 +123,15 @@ TEST(SharedMemory, DeleteDoesNotDestruct) {
     EXPECT_EQ(0, i);
   }
   EXPECT_EQ(0, i);
+}
+
+TEST(SharedMemory, ExplicitDestructDoesDestruct) {
+  int i = 0;
+  {
+    SharedMemory<DestructSetsInt> shared("test", sizeof(DestructSetsInt), O_RDWR, true);
+    new (&shared) DestructSetsInt(i, 2);
+    EXPECT_EQ(0, i);
+    shared->~DestructSetsInt();
+  }
+  EXPECT_EQ(2, i);
 }
