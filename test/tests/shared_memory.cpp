@@ -135,3 +135,8 @@ TEST(SharedMemory, ExplicitDestructDoesDestruct) {
   }
   EXPECT_EQ(2, i);
 }
+
+TEST(SharedMemory, NotExist) {
+  EXPECT_THROW(SharedMemory<int> m("test", 1, sizeof(int), O_RDWR), std::runtime_error);
+  EXPECT_THROW(SharedMemory<int> m("test", 1, sizeof(int)), std::runtime_error);
+}
