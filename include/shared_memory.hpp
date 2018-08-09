@@ -87,11 +87,9 @@ class SharedMemory {
       return *memory_region;
     }
     const T* operator&(void) const {
-      if (!memory_region) throw std::runtime_error("nullptr");
       return memory_region;
     }
     const T* operator->(void) const {
-      if (!memory_region) throw std::runtime_error("nullptr");
       return memory_region;
     }
     const T& operator[](size_t i) const {
@@ -104,11 +102,9 @@ class SharedMemory {
       return *memory_region;
     }
     T* operator&(void) {
-      if (!memory_region) throw std::runtime_error("nullptr");
       return memory_region;
     }
     T* operator->(void) {
-      if (!memory_region) throw std::runtime_error("nullptr");
       return memory_region;
     }
     T& operator[](size_t i) {
