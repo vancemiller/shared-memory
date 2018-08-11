@@ -20,7 +20,7 @@ class SharedMemory {
   private:
     const size_t nmemb;
     const size_t size;
-    bool create;
+    int flags;
     int fd;
   protected:
     T* memory_region = NULL;
@@ -29,16 +29,15 @@ class SharedMemory {
       * Create a shared memory region of size nmemb * size identified by name.
       * flags are POSIX shm (man shm_open) flags specifying permissions (O_RDONLY by default).
       * Writable regions should set flags to O_RDWR.
-      * If create is true, the constructor will overwrite existing shared memory regions with the
-      * same name.
+      * To create a new shared memory region, OR O_CREAT in to flags.
+      * To make sure a newly created memory region doesn't overwrite an existing one, OR O_EXCL
+      * in to flags.
       */
-    SharedMemory(const std::string& name, size_t nmemb, size_t size, int flags = O_RDONLY,
-        bool create = false) : name(std::string("/") + name), nmemb(nmemb), size(size),
-        create(create), fd(-1) {
+    SharedMemory(const std::string& name, size_t nmemb, size_t size, int flags = O_RDONLY) :
+        name(std::string("/") + name), nmemb(nmemb), size(size), flags(flags), fd(-1) {
       if (sizeof(T) > size)
         throw std::runtime_error("size must be at least " + std::to_string(sizeof(T)));
-      mode_t mode = create ? 0666 : 0;
-      if (create) flags |= O_CREAT;
+      mode_t mode = (flags & O_CREAT) ? 0666 : 0;
       int retry_count = 0;
       while ((fd = shm_open(this->name.c_str(), flags, mode)) == -1) {
         retry_count++;
@@ -46,7 +45,7 @@ class SharedMemory {
         if (retry_count >= RETRY_COUNT)
           throw std::system_error(errno, std::generic_category(), "shm_open failed");
       }
-      if (create)
+      if (flags & O_CREAT)
         if (ftruncate(fd, nmemb * size) == -1)
           throw std::system_error(errno, std::generic_category(), "ftruncate failed");
       int prot = PROT_READ;
@@ -55,8 +54,8 @@ class SharedMemory {
         throw std::system_error(errno, std::generic_category(), "mmap failed");
    }
 
-    SharedMemory(const std::string& name, size_t size, int flags = O_RDONLY, bool create = false) :
-        SharedMemory(name, 1, size, flags, create) {}
+    SharedMemory(const std::string& name, size_t size, int flags = O_RDONLY) :
+        SharedMemory(name, 1, size, flags) {}
 
     ~SharedMemory(void) {
       if (memory_region)
@@ -65,7 +64,7 @@ class SharedMemory {
       if (fd != -1) {
         if (close(fd) == -1)
           std::cerr << "close failed: " << std::strerror(errno) << std::endl;
-        if (create)
+        if (flags & O_CREAT)
           if (shm_unlink(name.c_str()) == -1)
             std::cerr << "shm_unlink failed: " << std::strerror(errno) << std::endl;
       }
@@ -75,9 +74,9 @@ class SharedMemory {
     SharedMemory(SharedMemory& o) = delete;
     SharedMemory(const SharedMemory& o) = delete;
     // Define move constructor
-    SharedMemory(SharedMemory&& o) : name(o.name), nmemb(o.nmemb), size(o.size), create(o.create),
+    SharedMemory(SharedMemory&& o) : name(o.name), nmemb(o.nmemb), size(o.size), flags(o.flags),
         fd(o.fd), memory_region(o.memory_region) {
-      o.create = false;
+      o.flags = O_RDONLY;
       o.memory_region = NULL;
       o.fd = -1;
     }
@@ -115,4 +114,3 @@ class SharedMemory {
 };
 
 #endif
-
