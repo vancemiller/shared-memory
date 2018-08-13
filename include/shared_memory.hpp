@@ -7,6 +7,7 @@
 #include <system_error>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 template <class T>
 class SharedMemory {
