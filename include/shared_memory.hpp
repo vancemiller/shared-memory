@@ -1,17 +1,12 @@
 #ifndef SHARED_MEMORY_HPP
 #define SHARED_MEMORY_HPP
 
-#include <cerrno>
 #include <cstring>
 #include <fcntl.h>
 #include <stdexcept>
 #include <system_error>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <unistd.h>
-
-#define RETRY_COUNT 100
-#define US_SLEEP_CONNECT 10000
 
 template <class T>
 class SharedMemory {
@@ -38,13 +33,8 @@ class SharedMemory {
       if (sizeof(T) > size)
         throw std::runtime_error("size must be at least " + std::to_string(sizeof(T)));
       mode_t mode = (flags & O_CREAT) ? 0666 : 0;
-      int retry_count = 0;
-      while ((fd = shm_open(this->name.c_str(), flags, mode)) == -1) {
-        retry_count++;
-        usleep(US_SLEEP_CONNECT);
-        if (retry_count >= RETRY_COUNT)
-          throw std::system_error(errno, std::generic_category(), "shm_open failed");
-      }
+      if ((fd = shm_open(this->name.c_str(), flags, mode)) == -1)
+        throw std::system_error(errno, std::generic_category(), "shm_open failed");
       if (flags & O_CREAT)
         if (ftruncate(fd, nmemb * size) == -1)
           throw std::system_error(errno, std::generic_category(), "ftruncate failed");
