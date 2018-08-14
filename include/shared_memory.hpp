@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <fcntl.h>
+#include <iostream>
 #include <stdexcept>
 #include <system_error>
 #include <sys/mman.h>
