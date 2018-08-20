@@ -2,6 +2,7 @@
 #include "shared_memory.hpp"
 
 #define ITERATIONS 6666
+namespace wrapper {
 
 TEST(SharedMemory, ConstructDestruct) {
   SharedMemory<int> sharedInt("test", sizeof(int), O_RDWR | O_CREAT | O_EXCL);
@@ -133,3 +134,4 @@ TEST(SharedMemory, NotExist) {
   EXPECT_THROW(SharedMemory<int> m("test", 1, sizeof(int), O_RDWR), std::runtime_error);
   EXPECT_THROW(SharedMemory<int> m("test", 1, sizeof(int)), std::runtime_error);
 }
+} // namespace wrapper

@@ -1,6 +1,8 @@
 #ifndef SHARED_MEMORY_HPP
 #define SHARED_MEMORY_HPP
 
+#include "file_descriptor.hpp"
+
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
@@ -10,6 +12,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+namespace wrapper {
+
 template <class T>
 class SharedMemory {
   public:
@@ -18,7 +22,7 @@ class SharedMemory {
     const size_t nmemb;
     const size_t size;
     int flags;
-    int fd;
+    FileDescriptor fd;
   protected:
     T* memory_region = NULL;
   public:
@@ -31,18 +35,22 @@ class SharedMemory {
       * in to flags.
       */
     SharedMemory(const std::string& name, size_t nmemb, size_t size, int flags = O_RDONLY) :
-        name(std::string("/") + name), nmemb(nmemb), size(size), flags(flags), fd(-1) {
-      if (sizeof(T) > size)
-        throw std::runtime_error("size must be at least " + std::to_string(sizeof(T)));
-      mode_t mode = (flags & O_CREAT) ? 0666 : 0;
-      if ((fd = shm_open(this->name.c_str(), flags, mode)) == -1)
+        name(std::string("/") + name), nmemb(nmemb), size(size), flags(flags), fd([this] (void) ->
+            int {
+              if (sizeof(T) > this->size)
+                throw std::runtime_error("size must be at least " + std::to_string(sizeof(T)));
+              mode_t mode = (this->flags & O_CREAT) ? 0666 : 0;
+              return shm_open(this->name.c_str(), this->flags, mode);
+            }()) {
+      if (fd == -1)
         throw std::system_error(errno, std::generic_category(), "shm_open failed");
       if (flags & O_CREAT)
-        if (ftruncate(fd, nmemb * size) == -1)
+        if (ftruncate(fd.get(), nmemb * size) == -1)
           throw std::system_error(errno, std::generic_category(), "ftruncate failed");
       int prot = PROT_READ;
       if (flags & O_RDWR) prot |= PROT_WRITE;
-      if ((memory_region = (T*) mmap(NULL, nmemb * size, prot, MAP_SHARED, fd, 0)) == MAP_FAILED)
+      if ((memory_region = (T*) mmap(NULL, nmemb * size, prot, MAP_SHARED, fd.get(), 0)) ==
+          MAP_FAILED)
         throw std::system_error(errno, std::generic_category(), "mmap failed");
    }
 
@@ -50,12 +58,9 @@ class SharedMemory {
         SharedMemory(name, 1, size, flags) {}
 
     ~SharedMemory(void) {
-      if (memory_region)
+      if (memory_region) {
         if (munmap(memory_region, nmemb * size) == -1)
           std::cerr << "munmap failed: " << std::strerror(errno) << std::endl;
-      if (fd != -1) {
-        if (close(fd) == -1)
-          std::cerr << "close failed: " << std::strerror(errno) << std::endl;
         if (flags & O_CREAT)
           if (shm_unlink(name.c_str()) == -1)
             std::cerr << "shm_unlink failed: " << std::strerror(errno) << std::endl;
@@ -67,10 +72,8 @@ class SharedMemory {
     SharedMemory(const SharedMemory& o) = delete;
     // Define move constructor
     SharedMemory(SharedMemory&& o) : name(o.name), nmemb(o.nmemb), size(o.size), flags(o.flags),
-        fd(o.fd), memory_region(o.memory_region) {
-      o.flags = O_RDONLY;
+        fd(std::move(o.fd)), memory_region(o.memory_region) {
       o.memory_region = NULL;
-      o.fd = -1;
     }
 
     const T& operator*(void) const {
@@ -105,4 +108,5 @@ class SharedMemory {
     }
 };
 
+} // namespace wrapper
 #endif
