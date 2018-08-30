@@ -35,10 +35,8 @@ class SharedMemory {
       * in to flags.
       */
     SharedMemory(const std::string& name, size_t nmemb, size_t size, int flags = O_RDONLY) :
-        name(std::string("/") + name), nmemb(nmemb), size(size), flags(flags), fd([this] (void) ->
-            int {
-              if (sizeof(T) > this->size)
-                throw std::runtime_error("size must be at least " + std::to_string(sizeof(T)));
+        name(std::string("/") + name), nmemb(nmemb), size(size), flags(flags),
+        fd([this] (void) -> int {
               mode_t mode = (this->flags & O_CREAT) ? 0666 : 0;
               return shm_open(this->name.c_str(), this->flags, mode);
             }()) {
