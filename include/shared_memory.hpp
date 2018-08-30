@@ -18,9 +18,10 @@ template <class T>
 class SharedMemory {
   public:
     const std::string name;
-  private:
+  public:
     const size_t nmemb;
     const size_t size;
+  private:
     int flags;
     FileDescriptor fd;
   protected:
