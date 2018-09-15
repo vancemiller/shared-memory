@@ -44,7 +44,7 @@ class SharedMemory {
               return shm_open(this->name.c_str(), this->flags, mode);
             }()) {
       if (fd == -1)
-        throw std::system_error(errno, std::generic_category(), "shm_open failed");
+        throw std::system_error(errno, std::generic_category(), "shm_open " + name + " failed");
       if (flags & O_CREAT)
         if (ftruncate(fd.get(), nmemb * size) == -1)
           throw std::system_error(errno, std::generic_category(), "ftruncate failed");

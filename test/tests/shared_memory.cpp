@@ -42,6 +42,18 @@ TEST(SharedMemory, Remap) {
   }
 }
 
+TEST(SharedMemory, TransferOwnership) {
+  std::unique_ptr<SharedMemory<int>> my_int(std::make_unique<SharedMemory<int>>("test",
+      sizeof(int), O_RDWR | O_CREAT | O_EXCL));
+  **my_int = 666;
+  {
+    SharedMemory<int> your_int("test", sizeof(int));
+    my_int.reset();
+    EXPECT_EQ(666, *your_int);
+  }
+  EXPECT_THROW(SharedMemory<int> your_int("test", sizeof(int)), std::system_error);
+}
+
 const int nmemb = 8;
 
 TEST(SharedMemory, ConstructDestructArray) {
