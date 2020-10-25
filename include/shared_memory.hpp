@@ -25,7 +25,7 @@ private:
     FileDescriptor fd;
 
 protected:
-    T *memory_region = NULL;
+    void *memory_region = NULL;
 
 public:
     /**
@@ -60,7 +60,7 @@ public:
         if (flags & O_RDWR) {
             prot |= PROT_WRITE;
         }
-        if ((memory_region = (T *)mmap(NULL, nmemb * sizeof(T), prot,
+        if ((memory_region = mmap(NULL, nmemb * sizeof(T), prot,
                                        MAP_SHARED, fd.get(), 0)) ==
             MAP_FAILED) {
             throw std::system_error(errno, std::generic_category(),
@@ -109,10 +109,10 @@ public:
         if (!memory_region) {
             throw std::runtime_error("nullptr");
         }
-        return *memory_region;
+        return *reinterpret_cast<T*>(memory_region);
     }
-    const T *operator&(void) const { return memory_region; }
-    const T *operator->(void) const { return memory_region; }
+    const T *operator&(void) const { return reinterpret_cast<T*>(memory_region); }
+    const T *operator->(void) const { return reinterpret_cast<T*>(memory_region); }
     const T &operator[](size_t i) const {
         if (!memory_region) {
             throw std::runtime_error("nullptr");
@@ -120,16 +120,16 @@ public:
         if (i > nmemb) {
             throw std::out_of_range(std::to_string(i));
         }
-        return ((T *)this->memory_region)[i];
+        return reinterpret_cast<T*>(this->memory_region)[i];
     }
     T &operator*(void) {
         if (!memory_region) {
             throw std::runtime_error("nullptr");
         }
-        return *memory_region;
+        return *reinterpret_cast<T*>(memory_region);
     }
-    T *operator&(void) { return memory_region; }
-    T *operator->(void) { return memory_region; }
+    T *operator&(void) { return reinterpret_cast<T*>(memory_region); }
+    T *operator->(void) { return reinterpret_cast<T*>(memory_region); }
     T &operator[](size_t i) {
         if (!memory_region) {
             throw std::runtime_error("nullptr");
@@ -137,7 +137,7 @@ public:
         if (i > nmemb) {
             throw std::out_of_range(std::to_string(i));
         }
-        return ((T *)this->memory_region)[i];
+        return reinterpret_cast<T*>(this->memory_region)[i];
     }
 };
 

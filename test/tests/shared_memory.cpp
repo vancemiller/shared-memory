@@ -1,5 +1,6 @@
 #include "shared_memory.hpp"
 #include "gtest/gtest.h"
+#include <thread>
 
 #define ITERATIONS 6666
 namespace wrapper {
@@ -51,7 +52,7 @@ TEST(SharedMemory, TransferOwnership) {
         my_int.reset();
         EXPECT_EQ(666, *your_int);
     }
-  EXPECT_THROW(SharedMemory<int> your_int("test"), std::system_error);
+    EXPECT_THROW(SharedMemory<int> your_int("test"), std::system_error);
 }
 
 const int nmemb = 8;
@@ -137,7 +138,22 @@ TEST(SharedMemory, ExplicitDestructDoesDestruct) {
 }
 
 TEST(SharedMemory, NotExist) {
-    EXPECT_THROW(SharedMemory<int> m("test", 1, O_RDWR), std::runtime_error);
-    EXPECT_THROW(SharedMemory<int> m("test", 1), std::runtime_error);
+    EXPECT_THROW(SharedMemory<int> m("test"), std::runtime_error);
+}
+
+TEST(SharedMemory, WaitUntilExist) {
+    SharedMemory<int> consumer;
+    std::thread t([&consumer] {
+        while (true) {
+            try {
+                consumer = SharedMemory<int>("test");
+                break;
+            } catch (std::runtime_error &e) { continue; }
+        }
+    });
+    SharedMemory<int> producer("test", O_RDWR | O_CREAT | O_EXCL);
+    *producer = 666;
+    t.join();
+    ASSERT_EQ(*consumer, 666);
 }
 }  // namespace wrapper
